@@ -55,7 +55,7 @@ use Time::Seconds;
 
 # get screen size
 my $winsize;
-my($scr_row, $scr_col) = (80, 20);
+my($scr_row, $scr_col) = (20, 80);
 require 'sys/ioctl.ph';
 if(defined &TIOCGWINSZ){
   if(open(TTY, "+</dev/tty")){
@@ -112,8 +112,7 @@ for(my $x=0; $x<=$width+1; $x++){
 for(my $i=1; $i<=$mine_num; $i++){
   my($x,$y);
   while(1){
-    $x = int(rand($width))+1;
-    $y = int(rand($height))+1;
+    ($x, $y) = (int(rand($width))+1, int(rand($height))+1);
     $map[$x][$y]<9 and last;
   }
   $map[$x-1][$y-1]++; $map[$x-1][$y]++; $map[$x-1][$y+1]++;
@@ -134,10 +133,8 @@ map { put($_+2, 0,        $index[$_], $color{t}{bg}, $color{t}{fg}) } 1..$height
 map { put($_+2, $width+4, $index[$_], $color{t}{bg}, $color{t}{fg}) } 1..$height;
 
 PLAY: while(1){
-  if($hit==$mine_num and $hit+$opened==$width*$height){
-    $result = 1;
-    last PLAY;
-  }
+  ($hit==$mine_num and $hit+$opened==$width*$height) and $result = 1, last PLAY;
+
   # draw cells
   for(my $x=1; $x<=$width; $x++){
     for(my $y=1; $y<=$height; $y++){
@@ -177,9 +174,7 @@ PLAY: while(1){
   }
   if($cmd eq '+'){
     if($map_open[$x][$y]==0){
-      if($map[$x][$y]>=9){
-        $hit++;
-      }
+      ($map[$x][$y]>=9) and $hit++;
       $map_open[$x][$y]=2; # mark cell
       $marked++;
     }
@@ -205,15 +200,22 @@ locate($height+6, 0);
 my $endtime = localtime();
 my $ellapsed = $endtime-$starttime;
 my ($e_h,$e_m,$e_s) = (int($ellapsed)/3600, int($ellapsed%3600/60), $ellapsed%60);
+my $lastmessage = ($result==1)?"YOU WIN!":"YOU FAILED!";
 color(["red"]);
-print "YOU WIN!"; cll(); print "\n"; cll(); print "\n";
+print "\n"; cll(); print "\n"; print_center($lastmessage);  cll();
 ereset();
-printf <<"EOD", pretty_date($starttime), pretty_date($endtime), $e_h,$e_m,$e_s;
+print_center(sprintf(<<"EOD", pretty_date($starttime), pretty_date($endtime), $e_h,$e_m,$e_s));
 start    : %s
 end      : %s
-ellapsed : %d:%02d:%02d
+ellapsed : %d:%02d:%02d                
 
 EOD
+print "\n[V]iew records. [T]ry game again, or [Q]uit game\n";
+while(<STDIN>){
+  /q/i and exit();
+  /v/i and last; #exec("perl $0 -r");
+  /t/i and exec("perl $0 $width, $height, $mine_num, $col");
+}
 
 # update record
 if($result and $e_h<=10){ # ignore records longer than 10hours as abnormal
@@ -223,11 +225,6 @@ if($result and $e_h<=10){ # ignore records longer than 10hours as abnormal
 }
 show_record($height, $width, $mine_num, $ellapsed);
 
-print "\n[V]iew records. [Q]uit game\n";
-while(<STDIN>){
-  /q/i and last;
-  /v/i and exec("perl $0 -r");
-}
 
 ### END OF MAIN
 
@@ -247,7 +244,6 @@ sub open_cell{ # check cells recursively, open cell, and modify @map_open
         $i==0 and $j==0 and next;
         my $yy = $y+$j;
         ($yy<=0 or $yy>$height) and next;
-#        ($map_open[$xx][$yy]==0 and $map[$xx][$yy]==0) and open_cell($xx, $yy);
         no warnings 'recursion';
         ($map_open[$xx][$yy]==0) and open_cell($xx, $yy);
         use warnings;
@@ -262,19 +258,26 @@ sub show_record{
   open(my $fhi, '<', $recfile) or die;
   my @rec = map {chomp; [split(/\t/, $_)]} <$fhi>;
   close $fhi;
+  my @rec_sort = sort {$a->[1] <=> $b->[1]} @rec;
 
   if(defined $h and defined $w and defined $mine){
-    my @rec_sort = sort {$a->[1] <=> $b->[1]} grep {$_->[3]==$h and $_->[4]==$w and $_->[5]==$mine} @rec;
-    print "* Best 5 records in height=$h, width=$w, mine=$mine\n";
-
-    foreach my $r (@rec_sort[0..4]){
+    my @rec1 = grep {$_->[3]==$h and $_->[4]==$w and $_->[5]==$mine} @rec;
+    print_center("\n# Best 5 records in height=$h, width=$w, mine=$mine\n\n", $scr_col);
+    print_center( "Date                    Ellapsed\n", $scr_col);
+    foreach my $r (@rec1[0..4]){
       (defined $r) or next;
-#    printf "%s %s %3d %3d %3d\n", $r->[0], $r->[2], $r->[3], $r->[4], $r->[5];
-      printf "%s %s\n", $r->[0], $r->[2];
+      print_center(sprintf("%s %s\n", $r->[0], $r->[2]), $scr_col);
     }
     if(defined $elapsed){
-      (scalar @rec>1) and ($elapsed==$rec_sort[0][1]) and print "You have broken the record for the fastest time.\n";
+      (scalar @rec>1) and ($elapsed==$rec1[0][1]) and print_center("You have broken the record for the fastest time.\n");
     }
+  }
+
+  # view unfiltered records
+  print_center("\n# Best 5 of whole records\n\n", $scr_col);
+  print_center("Date                    Ellapsed  w  h  m\n", $scr_col);
+  foreach my $r (@rec_sort[0..4]){
+    print_center(sprintf("%s %s %2d %2d %2d\n", $r->[0], $r->[2], $r->[4], $r->[3], $r->[5]), $scr_col);
   }
 }
 
@@ -326,6 +329,15 @@ sub put{
   (defined $color_fg and defined $color_bg) and color($color_fg, $color_bg);
   print "$t\n";
   ereset();
+}
+
+sub print_center{
+  my($txt0, $width) = @_;
+  (defined $width) or $width=$scr_col;
+  foreach my $txt (split("\n", $txt0)){
+    my $ind = ' ' x int(($width-length($txt))/2);
+    print($ind, "$txt\n");
+  }
 }
 
 sub message{
