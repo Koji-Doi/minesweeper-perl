@@ -73,8 +73,6 @@ if(defined &TIOCGWINSZ){
 
 $ARGV[0]=~/^-/ and my $opt = shift @ARGV;
 my($width, $height, $mine_num, $col) = @ARGV; # map width, map height, the number of mine, color mode
-($width>$scr_col-4)   and $width  = $scr_col-4;
-($height>$scr_row-10) and $height = $scr_row-10; 
 my $recfile = ($ENV{HOME}||'.')."/minesweeper.pl.rec"; # file to save play records
 if(defined $opt){
   ($opt=~/^-+h/) and print(pod2usage(-verbose => 2, -input => $FindBin::Bin . "/" . $FindBin::Script));
@@ -86,6 +84,8 @@ $width     = $width    || 6;
 $height    = $height   || 6;
 $mine_num  = $mine_num || 4;
 $col       = $col      || '256'; # '8', '256', '8rev', '256rev'; 'rev':board is displayed in reverse mode
+($width>$scr_col-4)   and $width  = $scr_col-4;
+($height>$scr_row-10) and $height = $scr_row-10; 
 my $col_offset = int(($scr_col - $width)/2);
 #srand(0);
 
